@@ -10,12 +10,7 @@ def get_input():
 
 
 def concatenate(a: int, b: int) -> int:
-    ten_power = 10
-    while True:
-        if b >= ten_power:
-            ten_power *= 10
-        else:
-            return a * ten_power + b
+    return int(f"{a}{b}")
 
 
 def test_operators(expected: int, values: list[int], operators):
