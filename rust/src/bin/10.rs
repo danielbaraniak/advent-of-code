@@ -1,6 +1,7 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::VecDeque;
 
 use num_complex::Complex;
+use std::ops::Range;
 
 advent_of_code::solution!(10);
 
@@ -12,56 +13,70 @@ const DIRECTIONS: [Complex<i32>; 4] = [
 ];
 
 struct Map {
-    map: Vec<Vec<i16>>,
-    range_x: std::ops::Range<i32>,
-    range_y: std::ops::Range<i32>,
+    data: Vec<u8>,
+    offset: usize,
+    range_x: Range<i32>,
+    range_y: Range<i32>,
 }
 
 impl Map {
     fn new(input: &str) -> Self {
-        let map: Vec<Vec<i16>> = input
-            .trim()
-            .lines()
-            .map(|line| {
-                line.chars()
-                    .map(|c| c.to_digit(10).unwrap() as i16)
-                    .collect()
-            })
-            .collect();
+        let lines: Vec<&str> = input.trim().lines().collect();
+        let height = lines.len();
+        let offset = lines[0].len();
+        let mut data = Vec::with_capacity(offset * height);
 
-        let range_x = 0..map[0].len() as i32;
-        let range_y = 0..map.len() as i32;
+        for line in lines {
+            data.extend(line.chars().map(|c| c.to_digit(10).unwrap() as u8));
+        }
 
         Self {
-            map,
-            range_x,
-            range_y,
+            data,
+            offset,
+            range_x: 0..offset.try_into().unwrap(),
+            range_y: 0..height.try_into().unwrap(),
         }
     }
 
-    fn get_altitude(&self, point: Complex<i32>) -> Option<i16> {
-        self.map
-            .get(point.im as usize)?
-            .get(point.re as usize)
-            .copied()
+    fn get_altitude(&self, point: &Complex<i32>) -> Option<u8> {
+        let index = self.point_to_index(point)?;
+        Some(self.data[index])
     }
 
     fn check_bounds(&self, point: &Complex<i32>) -> bool {
         self.range_x.contains(&point.re) && self.range_y.contains(&point.im)
+    }
+
+    fn index_to_point(&self, index: usize) -> Complex<i32> {
+        let x = index % self.offset;
+        let y = index / self.offset;
+        Complex::new(x as i32, y as i32)
+    }
+
+    fn point_to_index(&self, point: &Complex<i32>) -> Option<usize> {
+        if !self.check_bounds(point) {
+            return None;
+        }
+        let x = point.re as usize;
+        let y = point.im as usize;
+        let index = y * self.offset + x;
+        Some(index)
     }
 }
 
 fn find_trails_exlude_visited(map: &Map, start: Complex<i32>) -> u32 {
     let mut counter = 0;
     let mut to_visit = VecDeque::from([start]);
-    let mut visited = HashSet::new();
+    let mut visited = vec![false; map.data.len()];
 
     while let Some(current) = to_visit.pop_back() {
-        if !visited.insert(current) {
+        let index = map.point_to_index(&current).unwrap();
+        if visited[index] {
             continue;
         }
+        visited[index] = true;
 
-        let current_altitude = match map.get_altitude(current) {
+        let expected_altitude = 1 + match map.get_altitude(&current) {
             None => continue,
             Some(9) => {
                 counter += 1;
@@ -70,12 +85,14 @@ fn find_trails_exlude_visited(map: &Map, start: Complex<i32>) -> u32 {
             Some(altitude) => altitude,
         };
 
-        DIRECTIONS
-            .iter()
-            .map(|d| current + d)
-            .filter(|next| map.check_bounds(next))
-            .filter(|next| map.get_altitude(*next).unwrap() == current_altitude + 1)
-            .for_each(|next| to_visit.push_back(next));
+        for direction in DIRECTIONS.iter() {
+            let next = current + direction;
+            if let Some(altitude) = map.get_altitude(&next) {
+                if altitude == expected_altitude {
+                    to_visit.push_back(next);
+                }
+            }
+        }
     }
     counter
 }
@@ -85,21 +102,16 @@ fn find_trails(map: &Map, start: Complex<i32>) -> u32 {
     let mut to_visit = VecDeque::from([start]);
 
     while let Some(current) = to_visit.pop_back() {
-        let current_altitude = match map.get_altitude(current) {
-            None => continue,
-            Some(9) => {
-                counter += 1;
-                continue;
-            }
-            Some(altitude) => altitude,
-        };
+        let expected_altitude = map.get_altitude(&current).unwrap() + 1;
 
-        DIRECTIONS
-            .iter()
-            .map(|d| current + d)
-            .filter(|next| map.check_bounds(next))
-            .filter(|next| map.get_altitude(*next).unwrap() == current_altitude + 1)
-            .for_each(|next| to_visit.push_back(next));
+        for d in DIRECTIONS.iter() {
+            let next = current + d;
+            match map.get_altitude(&next) {
+                Some(9) if 9 == expected_altitude => counter += 1,
+                Some(altitude) if altitude == expected_altitude => to_visit.push_back(next),
+                _ => (),
+            }
+        }
     }
     counter
 }
@@ -107,33 +119,30 @@ fn find_trails(map: &Map, start: Complex<i32>) -> u32 {
 pub fn part_one(input: &str) -> Option<u32> {
     let topographic_map = Map::new(input);
 
-    let mut counter = 0;
+    let counter = topographic_map
+        .data
+        .iter()
+        .enumerate()
+        .filter(|&(_, &altitude)| altitude == 0)
+        .map(|(index, _)| topographic_map.index_to_point(index))
+        .fold(0, |acc, start| {
+            acc + find_trails_exlude_visited(&topographic_map, start)
+        });
 
-    for (y, row) in topographic_map.map.iter().enumerate() {
-        for (x, cell) in row.iter().enumerate() {
-            if *cell != 0 {
-                continue;
-            }
-            counter +=
-                find_trails_exlude_visited(&topographic_map, Complex::new(x as i32, y as i32));
-        }
-    }
     Some(counter)
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
     let topographic_map = Map::new(input);
 
-    let mut counter = 0;
+    let counter = topographic_map
+        .data
+        .iter()
+        .enumerate()
+        .filter(|&(_, &altitude)| altitude == 0)
+        .map(|(index, _)| topographic_map.index_to_point(index))
+        .fold(0, |acc, start| acc + find_trails(&topographic_map, start));
 
-    for (y, row) in topographic_map.map.iter().enumerate() {
-        for (x, cell) in row.iter().enumerate() {
-            if *cell != 0 {
-                continue;
-            }
-            counter += find_trails(&topographic_map, Complex::new(x as i32, y as i32));
-        }
-    }
     Some(counter)
 }
 
