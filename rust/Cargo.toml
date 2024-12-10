@@ -1,0 +1,32 @@
+[package]
+authors = ["Daniel Baraniak <57521324+danielbaraniak@users.noreply.github.com>", "Felix Spöttel <1682504+fspoettel@users.noreply.github.com>"]
+default-run = "advent_of_code"
+edition = "2021"
+name = "advent_of_code"
+publish = false
+version = "0.11.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+doctest = false
+
+[profile.dhat]
+debug = 1
+inherits = "release"
+
+[features]
+dhat-heap = ["dhat"]
+test_lib = []
+today = ["chrono"]
+
+[dependencies]
+
+# Template dependencies
+chrono = {version = "0.4.38", optional = true}
+dhat = {version = "0.3.3", optional = true}
+pico-args = "0.5.0"
+tinyjson = "2.5.1"
+
+# Solution dependencies
+itertools = "0.13.0"
+num-complex = "0.4.6"
