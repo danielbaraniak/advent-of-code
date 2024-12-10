@@ -29,7 +29,7 @@ pub fn part_one(input: &str) -> Option<u64> {
             left += 1;
         }
 
-        while right > 0 && segments[right] == FREE {
+        while right > left && segments[right] == FREE {
             right -= 1;
         }
 
@@ -55,11 +55,11 @@ pub fn part_two(input: &str) -> Option<u64> {
 
     let mut defragmented_segments = segments.clone();
 
-    for segment in segments.iter().rev().filter(|seg| seg.id != FREE) {
+    for segment in segments.iter().rev().filter(|seg| seg.id.is_some()) {
         let free_space = defragmented_segments
             .iter()
             .enumerate()
-            .find(|(_, seg)| seg.id == FREE && seg.size >= segment.size);
+            .find(|(_, seg)| seg.id.is_none() && seg.size >= segment.size);
 
         match free_space {
             None => continue,
@@ -70,36 +70,33 @@ pub fn part_two(input: &str) -> Option<u64> {
                     defragmented_segments.insert(free_idx + 1, remainder);
                 }
 
-                if let Some((idx, _)) = defragmented_segments
+                if let Some(idx) = defragmented_segments
                     .iter()
-                    .enumerate()
-                    .rev()
-                    .find(|(_, seg)| seg.id == segment.id)
+                    .rposition(|seg| seg.id == segment.id)
                 {
-                    defragmented_segments[idx].id = FREE;
+                    defragmented_segments[idx].id = None;
                 }
             }
         }
     }
 
-    let mut offset = 0;
     let mut checksum = 0;
 
-    for segment in defragmented_segments.iter() {
-        if segment.id != FREE {
+    defragmented_segments.iter().fold(0, |offset, segment| {
+        if let Some(id) = segment.id {
             let start = offset;
             let end = offset + segment.size as u64 - 1;
-            checksum += segment.id as u64 * (start + end) * segment.size as u64 / 2;
+            checksum += id as u64 * (start + end) * segment.size as u64 / 2;
         }
-        offset += segment.size as u64;
-    }
+        offset + segment.size as u64
+    });
 
     Some(checksum)
 }
 
 #[derive(Clone)]
 struct Segment {
-    id: i32,
+    id: Option<i32>,
     size: u32,
 }
 
@@ -107,18 +104,15 @@ fn parse(input: &str) -> Vec<Segment> {
     input
         .trim()
         .char_indices()
-        .map(|(i, c)| {
-            if i % 2 == 0 {
-                Segment {
-                    id: (i / 2) as i32,
-                    size: c.to_digit(10).unwrap(),
-                }
-            } else {
-                Segment {
-                    id: FREE,
-                    size: c.to_digit(10).unwrap(),
-                }
-            }
+        .map(|(i, c)| match i % 2 {
+            0 => Segment {
+                id: Some((i / 2) as i32),
+                size: c.to_digit(10).unwrap(),
+            },
+            _ => Segment {
+                id: None,
+                size: c.to_digit(10).unwrap(),
+            },
         })
         .collect()
 }
@@ -126,22 +120,24 @@ fn parse(input: &str) -> Vec<Segment> {
 #[derive(Debug)]
 enum SegmentError {
     InsufficientSpace,
+    NotFree,
 }
+
 impl Segment {
     fn allocate(&self, new_segment: &Segment) -> Result<(Segment, Segment), SegmentError> {
-        if self.id == FREE && self.size >= new_segment.size {
-            Ok((
+        match (self.id, self.size >= new_segment.size) {
+            (None, true) => Ok((
                 Segment {
                     id: new_segment.id,
                     size: new_segment.size,
                 },
                 Segment {
-                    id: FREE,
+                    id: None,
                     size: self.size - new_segment.size,
                 },
-            ))
-        } else {
-            Err(SegmentError::InsufficientSpace)
+            )),
+            (_, true) => Err(SegmentError::NotFree),
+            (_, false) => Err(SegmentError::InsufficientSpace),
         }
     }
 }
