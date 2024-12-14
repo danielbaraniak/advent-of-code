@@ -1,6 +1,6 @@
 <img src="./.assets/christmas_ferris.png" width="164">
 
-# 🎄 Advent of Code {year}
+# 🎄 Advent of Code 2024
 
 Solutions for [Advent of Code](https://adventofcode.com/) in [Rust](https://www.rust-lang.org/).
 
@@ -8,6 +8,8 @@ Solutions for [Advent of Code](https://adventofcode.com/) in [Rust](https://www.
 
 <!--- benchmarking table --->
 ## Benchmarks
+
+On i7-8550U 1.8GHz
 
 | Day | Part 1 | Part 2 |
 | :---: | :---: | :---:  |
