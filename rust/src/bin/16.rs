@@ -190,25 +190,7 @@ fn count_best_paths(maze: &Array2<Tile>, costs: &Array2<u32>) -> u32 {
             }
         }
     }
-
     tile_count
-}
-
-#[cfg(debug_assertions)]
-fn print_maze(maze: &Array2<Tile>, visited: &Array2<u32>) {
-    for ((position, &tile), &cost) in maze.indexed_iter().zip(visited.iter()) {
-        match (tile, cost) {
-            (Tile::Empty, u32::MAX) => print!("{:^5}", ' '),
-            (Tile::Wall, _) => print!("{:^5}", '#'),
-            (Tile::Start, _) => print!("{:^5}", 'S'),
-            (Tile::End, _) => print!("{:^5}", 'E'),
-            _ => print!("{:^5}", cost),
-        }
-
-        if position.1 == maze.dim().1 - 1 {
-            println!();
-        }
-    }
 }
 
 #[cfg(test)]
