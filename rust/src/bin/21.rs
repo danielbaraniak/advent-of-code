@@ -118,9 +118,12 @@ fn get_key_position(keypad: &Array2<char>, key: char) -> (usize, usize) {
 fn map_keypad(keypad: &Array2<char>, mut code: String) -> String {
     code.insert(0, 'A');
     code.chars()
-        .map(|c| get_key_position(keypad, c))
         .tuple_windows()
-        .flat_map(|(p1, p2)| move_to_key(p1, p2, keypad))
+        .flat_map(|(c1, c2)| {
+            let p1 = get_key_position(keypad, c1);
+            let p2 = get_key_position(keypad, c2);
+            move_to_key(p1, p2, keypad)
+        })
         .collect()
 }
 
@@ -131,9 +134,10 @@ fn parse_input_code(input_code: String) -> u32 {
 pub fn part_one(input: &str) -> Option<u32> {
     let codes: Vec<String> = input.lines().map(|s| s.to_string()).collect();
 
-    let mut directional_codes = Vec::new();
     let numpad = num_pad();
     let directional_pad = directional_pad();
+
+    let mut directional_codes = Vec::new();
 
     for code in codes.iter() {
         let code1 = map_keypad(&numpad, code.clone());
@@ -153,7 +157,33 @@ pub fn part_one(input: &str) -> Option<u32> {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    None
+    let codes: Vec<String> = input.lines().map(|s| s.to_string()).collect();
+
+    let mut directional_codes = Vec::new();
+    let numpad = num_pad();
+    let directional_pad = directional_pad();
+
+    for code in codes.iter() {
+        directional_codes.push(map_keypad(&numpad, code.clone()));
+    }
+
+    for code in directional_codes.iter_mut() {
+        for i in 0..25 {
+            let new_code = map_keypad(&directional_pad, code.clone());
+            code.clear();
+            code.push_str(&new_code);
+            dbg!(i);
+        }
+    }
+
+    let total_complexity = codes
+        .iter()
+        .zip(directional_codes)
+        .map(|(input_code, output_code)| {
+            parse_input_code(input_code.clone()) * output_code.len() as u32
+        })
+        .sum();
+    Some(total_complexity)
 }
 
 #[cfg(test)]
@@ -169,6 +199,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(126384));
     }
 }
