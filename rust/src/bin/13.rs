@@ -84,23 +84,19 @@ fn parse_input(input: &str) -> Vec<Game> {
 }
 
 fn find_minimum(game: Game) -> Option<u64> {
-    let b_result;
-    if (game.prize.1 * game.a.0 - game.prize.0 * game.a.1)
-        % (game.a.0 * game.b.1 - game.b.0 * game.a.1)
-        == 0
-    {
-        b_result = (game.prize.1 * game.a.0 - game.prize.0 * game.a.1)
-            / (game.a.0 * game.b.1 - game.b.0 * game.a.1);
+    let b_nominator = game.prize.1 * game.a.0 - game.prize.0 * game.a.1;
+    let b_denominator = game.a.0 * game.b.1 - game.b.0 * game.a.1;
+    let b_result = if b_nominator % b_denominator == 0 {
+        b_nominator / b_denominator
     } else {
         return None;
-    }
+    };
 
-    let a_result;
-    if (game.prize.0 - game.b.0 * b_result) % game.a.0 == 0 {
-        a_result = (game.prize.0 - game.b.0 * b_result) / game.a.0;
+    let a_result = if (game.prize.0 - game.b.0 * b_result) % game.a.0 == 0 {
+        (game.prize.0 - game.b.0 * b_result) / game.a.0
     } else {
         return None;
-    }
+    };
 
     Some((a_result * 3 + b_result) as u64)
 }
