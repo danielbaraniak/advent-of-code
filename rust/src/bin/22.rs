@@ -3,18 +3,15 @@ use std::collections::HashMap;
 
 advent_of_code::solution!(22);
 
-const fn mix(secret: u64, n: u64) -> u64 {
-    n ^ secret
-}
-
 const fn prune(secret: u64) -> u64 {
     secret % 16777216
 }
 
 const fn evolve(secret: u64) -> u64 {
-    let step1 = prune(mix(secret, secret << 6));
-    let step2 = prune(mix(step1, step1 >> 5));
-    prune(mix(step2, step2 << 11))
+    let mut result = prune(secret ^ secret << 6);
+    result = prune(result ^ result >> 5);
+    result = prune(result ^ result << 11);
+    result
 }
 
 pub fn part_one(input: &str) -> Option<u64> {
