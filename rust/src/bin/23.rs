@@ -86,7 +86,23 @@ pub fn part_one(input: &str) -> Option<u32> {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    None
+    let connections = input
+        .lines()
+        .map(|line| line.trim().split_once('-').unwrap())
+        .map(|(a, b)| {
+            (
+                a.parse::<ComputerId>().unwrap(),
+                b.parse::<ComputerId>().unwrap(),
+            )
+        });
+
+    let network = UnGraph::<ComputerId, ()>::from_edges(connections);
+
+    network
+        .node_indices()
+        .sorted_by_key(|&node| network.neighbors(node).count())
+        .rev()
+        .None
 }
 
 #[cfg(test)]

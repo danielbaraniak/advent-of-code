@@ -68,6 +68,14 @@ pub fn part_two(input: &str) -> Option<u32> {
     sum_per_sequence.into_values().max()
 }
 
+fn solution(numbers: Vec<i32>) -> Vec<i32> {
+    numbers.windows(2)
+        .map(|(a, b)| b - a)
+        .
+        .map(|(a, b)| if a * b < 0 { 1 } else { 0 })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

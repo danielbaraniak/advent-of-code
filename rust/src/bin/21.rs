@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, collections::HashMap};
 
 use itertools::Itertools;
 use ndarray::{array, Array2};
@@ -127,6 +127,86 @@ fn map_keypad(keypad: &Array2<char>, mut code: String) -> String {
         .collect()
 }
 
+fn map_keypad_2(
+    keypad: &Array2<char>,
+    code: &mut str,
+    iterations: u8,
+    cache: &mut HashMap<(u8, char, char), Vec<char>>,
+) -> String {
+    let result: Vec<char> = code
+        .chars()
+        .tuple_windows()
+        .flat_map(|(c1, c2)| get_steps(keypad, c1, c2, iterations, cache))
+        .collect();
+
+    let mut prefix = get_steps_with_prefix(keypad, code.chars().next().unwrap(), iterations, cache);
+
+    prefix.extend(result);
+
+    prefix.iter().collect()
+}
+
+fn get_steps(
+    keypad: &Array2<char>,
+    c1: char,
+    c2: char,
+    iterations: u8,
+    cache: &mut HashMap<(u8, char, char), Vec<char>>,
+) -> Vec<char> {
+    if let Some(cached_steps) = cache.get(&(iterations, c1, c2)) {
+        return cached_steps.clone();
+    }
+    let p1 = get_key_position(keypad, c1);
+    let p2 = get_key_position(keypad, c2);
+    let steps = move_to_key(p1, p2, keypad);
+    if iterations == 0 {
+        return steps;
+    }
+
+    let steps_to_end: Vec<char> = steps
+        .iter()
+        .tuple_windows()
+        .flat_map(|(&c1_tmp, &c2_tmp)| get_steps(keypad, c1_tmp, c2_tmp, iterations - 1, cache))
+        .collect();
+
+    cache.insert((iterations, c1, c2), steps_to_end.clone());
+    steps_to_end
+}
+
+fn get_steps_with_prefix(
+    keypad: &Array2<char>,
+    c: char,
+    iterations: u8,
+    cache: &mut HashMap<(u8, char, char), Vec<char>>,
+) -> Vec<char> {
+    if let Some(cached_steps) = cache.get(&(iterations, 'A', c)) {
+        return cached_steps.clone();
+    }
+    let p1 = get_key_position(keypad, 'A');
+    let p2 = get_key_position(keypad, c);
+    let steps = move_to_key(p1, p2, keypad);
+    if iterations == 0 {
+        return steps;
+    }
+
+    let steps_to_end: Vec<char> = steps
+        .iter()
+        .tuple_windows()
+        .flat_map(|(&c1_tmp, &c2_tmp)| get_steps(keypad, c1_tmp, c2_tmp, iterations - 1, cache))
+        .collect();
+
+    if steps_to_end.is_empty() {
+        cache.insert((iterations, 'A', c), steps.clone());
+        return steps;
+    }
+    let mut prefix = get_steps_with_prefix(keypad, steps_to_end[0], iterations - 1, cache);
+
+    prefix.extend(steps_to_end);
+
+    cache.insert((iterations, 'A', c), prefix.clone());
+    prefix
+}
+
 fn parse_input_code(input_code: String) -> u32 {
     input_code.strip_suffix("A").unwrap().parse().unwrap()
 }
@@ -167,13 +247,10 @@ pub fn part_two(input: &str) -> Option<u32> {
         directional_codes.push(map_keypad(&numpad, code.clone()));
     }
 
+    let mut cache = HashMap::new();
     for code in directional_codes.iter_mut() {
-        for i in 0..25 {
-            let new_code = map_keypad(&directional_pad, code.clone());
-            code.clear();
-            code.push_str(&new_code);
-            dbg!(i);
-        }
+        let new_code = map_keypad_2(&directional_pad, code, 3, &mut cache);
+        *code = new_code;
     }
 
     let total_complexity = codes

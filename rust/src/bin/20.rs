@@ -1,6 +1,6 @@
 use std::{
     cmp::Reverse,
-    collections::{BinaryHeap, HashMap},
+    collections::{BinaryHeap, HashMap, HashSet},
 };
 
 use itertools::Itertools;
@@ -9,6 +9,10 @@ use ndarray::{Array, Array1, Array2};
 advent_of_code::solution!(20);
 
 const DIRECTIONS: [(i8, i8); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+const CHEAT_TIME_LIMIT: u8 = 20;
+const MIN_CHEAT_SAVE: u32 = 100;
+
+type Position = (usize, usize);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Tile {
@@ -35,7 +39,7 @@ pub fn part_one(input: &str) -> Option<u32> {
 
     let visited = solve_maze(&maze)?;
 
-    let cheets = find_cheets(&maze, &visited);
+    let cheets = find_cheats(&maze, &visited);
 
     // dbg!(&cheets.iter().sorted().collect::<Vec<_>>());
 
@@ -49,7 +53,20 @@ pub fn part_one(input: &str) -> Option<u32> {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    None
+    let maze = parse_input(input);
+
+    let visited = solve_maze(&maze)?;
+
+    let cheets = find_cheats_long(&maze, &visited);
+
+    dbg!(&cheets.iter().sorted().collect::<Vec<_>>());
+
+    let cheet_count = cheets
+        .iter()
+        .map(|(&_time_saved, &counter)| counter as u32)
+        .sum();
+
+    Some(cheet_count)
 }
 
 fn parse_input(input: &str) -> Array2<Tile> {
@@ -66,11 +83,11 @@ fn parse_input(input: &str) -> Array2<Tile> {
     map.into_shape_with_order(shape).unwrap()
 }
 
-fn next_position(
-    position: (usize, usize),
+fn get_next_position(
+    position: Position,
     direction: (i8, i8),
     shape: (usize, usize),
-) -> Option<(usize, usize)> {
+) -> Option<Position> {
     let next_position = (
         position.0.checked_add_signed(direction.0 as isize)?,
         position.1.checked_add_signed(direction.1 as isize)?,
@@ -97,7 +114,7 @@ fn solve_maze(maze: &Array2<Tile>) -> Option<Array2<u32>> {
             return Some(visited);
         }
         for direction in DIRECTIONS {
-            if let Some(next_position) = next_position(position, direction, shape) {
+            if let Some(next_position) = get_next_position(position, direction, shape) {
                 let next_tile = maze[next_position];
 
                 if next_tile == Tile::Wall {
@@ -115,36 +132,27 @@ fn solve_maze(maze: &Array2<Tile>) -> Option<Array2<u32>> {
     None
 }
 
-fn find_tile(maze: &Array2<Tile>, tile_type: Tile) -> Option<(usize, usize)> {
+fn find_tile(maze: &Array2<Tile>, tile_type: Tile) -> Option<Position> {
     maze.indexed_iter()
         .find(|(_, &tile)| tile == tile_type)
         .map(|(position, _tile)| position)
 }
 
-fn find_cheets(maze: &Array2<Tile>, visited: &Array2<u32>) -> HashMap<i32, u32> {
-    let mut cheets = HashMap::new();
+fn find_cheats(maze: &Array2<Tile>, visited: &Array2<u32>) -> HashMap<i32, u32> {
+    let mut cheats = HashMap::new();
 
     let shape = maze.dim();
-    let mut path = Vec::new();
 
-    let mut current_position = find_tile(maze, Tile::Start).unwrap();
+    let start_position = find_tile(maze, Tile::Start).unwrap();
     let end_position = find_tile(maze, Tile::End).unwrap();
+    let race_path = get_path(visited, start_position, end_position);
 
-    while current_position != end_position {
-        path.push(current_position);
+    for current_position in race_path {
         let current_section = visited[current_position];
-        let mut next_path_coord = None;
         for direction in DIRECTIONS {
-            let next_coordinates = next_position(current_position, direction, shape);
+            let next_coordinates = get_next_position(current_position, direction, shape);
 
             match next_coordinates {
-                Some(next_coord)
-                    if maze[next_coord] == Tile::Empty
-                        && visited[next_coord] == current_section + 1 =>
-                {
-                    next_path_coord = Some(next_coord);
-                    continue;
-                }
                 Some(next_coord) if maze[next_coord] == Tile::Wall => {}
                 _ => {
                     continue;
@@ -152,7 +160,7 @@ fn find_cheets(maze: &Array2<Tile>, visited: &Array2<u32>) -> HashMap<i32, u32> 
             }
 
             let past_next_coordinates =
-                next_position(current_position, (direction.0 * 2, direction.1 * 2), shape);
+                get_next_position(current_position, (direction.0 * 2, direction.1 * 2), shape);
 
             let past_next_coordinates = match past_next_coordinates {
                 Some(next_coord) if maze[next_coord] != Tile::Wall => next_coord,
@@ -164,18 +172,126 @@ fn find_cheets(maze: &Array2<Tile>, visited: &Array2<u32>) -> HashMap<i32, u32> 
             let time_saved = past_next_section as i32 - current_section as i32 - 2;
 
             if time_saved > 0 {
-                cheets
+                cheats
                     .entry(time_saved)
                     .and_modify(|counter| *counter += 1)
                     .or_insert(1);
             }
         }
-        match next_path_coord {
-            Some(next) => current_position = next,
-            None => break,
+    }
+    cheats
+}
+
+fn get_path(visited: &Array2<u32>, start: Position, end: Position) -> Vec<Position> {
+    let mut path: Vec<Position> = Vec::with_capacity(visited[end] as usize);
+    path.push(start);
+
+    let shape = visited.dim();
+
+    let mut current_position = start;
+    let mut current_section = visited[start];
+
+    while current_position != end {
+        for direction in DIRECTIONS {
+            let next = get_next_position(current_position, direction, shape);
+            match next {
+                Some(next_coordinates) if visited[next_coordinates] == current_section + 1 => {
+                    current_position = next_coordinates;
+                    current_section += 1;
+                    path.push(current_position);
+                    break;
+                }
+                _ => {}
+            }
         }
     }
-    cheets
+    path
+}
+
+fn explore_neighbours(
+    visited: &Array2<u32>,
+    position: Position,
+    available_exits: &mut HashSet<(u8, Position)>,
+    steps_left: u8,
+    locally_visited: &mut HashSet<Position>,
+) {
+    let segment_number = visited[position];
+    if !locally_visited.insert(position) {
+        return;
+    }
+
+    if segment_number != u32::MAX {
+        available_exits.insert((steps_left, position));
+    }
+
+    if steps_left == 0 {
+        return;
+    }
+
+    for direction in DIRECTIONS {
+        let maybe_next = get_next_position(position, direction, visited.dim());
+        if let Some(next) = maybe_next {
+            explore_neighbours(
+                visited,
+                next,
+                available_exits,
+                steps_left - 1,
+                locally_visited,
+            )
+        }
+    }
+}
+
+fn find_cheats_long(maze: &Array2<Tile>, visited: &Array2<u32>) -> HashMap<i32, usize> {
+    let mut cheats = HashMap::new();
+
+    let shape = maze.dim();
+
+    let start_position = find_tile(maze, Tile::Start).unwrap();
+    let end_position = find_tile(maze, Tile::End).unwrap();
+    let race_path = get_path(visited, start_position, end_position);
+
+    for current_position in race_path {
+        let current_section = visited[current_position];
+
+        for direction in DIRECTIONS {
+            let maybe_next = get_next_position(current_position, direction, shape);
+
+            if let Some(next) = maybe_next {
+                if maze[next] != Tile::Wall {
+                    continue;
+                }
+
+                let mut available_exits: HashSet<(u8, Position)> = HashSet::new();
+                let mut locally_visited = HashSet::new();
+                explore_neighbours(
+                    visited,
+                    next,
+                    &mut available_exits,
+                    CHEAT_TIME_LIMIT - 1,
+                    &mut locally_visited,
+                );
+
+                available_exits
+                    .into_iter()
+                    .map(|(step_left, position)| {
+                        visited[position] as i32
+                            - current_section as i32
+                            - (CHEAT_TIME_LIMIT as i32 - step_left as i32)
+                    })
+                    .filter(|&cheat_save| cheat_save >= 50 as i32)
+                    .counts_by(|saved_time| saved_time)
+                    .iter()
+                    .for_each(|(&saved_time, &counter)| {
+                        cheats
+                            .entry(saved_time)
+                            .and_modify(|v| *v += counter)
+                            .or_insert(counter);
+                    });
+            }
+        }
+    }
+    cheats
 }
 
 #[cfg(test)]
